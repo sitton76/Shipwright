@@ -12,6 +12,9 @@
 #include <Window.h>
 #include <GameVersions.h>
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 #include "z64animation.h"
 #include "z64bgcheck.h"
 #include "Enhancements/gameconsole.h"
@@ -220,12 +223,34 @@ OTRGlobals::OTRGlobals() {
     if (std::filesystem::exists(sohOtrPath)) {
         OTRFiles.push_back(sohOtrPath);
     }
+
     std::string patchesPath = LUS::Context::LocateFileAcrossAppDirs("mods", appShortName);
-    if (patchesPath.length() > 0 && std::filesystem::exists(patchesPath)) {
-        if (std::filesystem::is_directory(patchesPath)) {
-            for (const auto& p : std::filesystem::recursive_directory_iterator(patchesPath)) {
-                if (StringHelper::IEquals(p.path().extension().string(), ".otr")) {
-                    OTRFiles.push_back(p.path().generic_string());
+    std::string sohJsonPath = LUS::Context::LocateFileAcrossAppDirs("shipofharkinian.json", appShortName);
+    bool useLoadOrder = false;
+    if (std::filesystem::exists(sohJsonPath)) {
+        std::ifstream sohJsonData(sohJsonPath);
+        json modData = json::parse(sohJsonData);
+        if (modData.contains("Mod-Load-Order")) {
+            useLoadOrder = true;
+            int modCountInt = modData["Mod-Load-Order"]["List-size"];
+            int iter_count = 1;
+            while (iter_count <= modCountInt) {
+                std::string foundModEntry = modData["Mod-Load-Order"][std::to_string(iter_count)];
+                std::string gotModPath = patchesPath + "/" + foundModEntry;
+                if (std::filesystem::exists(gotModPath)) {
+                    OTRFiles.push_back(gotModPath);
+                }
+                iter_count += 1;
+            }
+        }
+    } 
+    if (useLoadOrder == false) {
+        if (patchesPath.length() > 0 && std::filesystem::exists(patchesPath)) {
+            if (std::filesystem::is_directory(patchesPath)) {
+                for (const auto& p : std::filesystem::recursive_directory_iterator(patchesPath)) {
+                    if (StringHelper::IEquals(p.path().extension().string(), ".otr")) {
+                        OTRFiles.push_back(p.path().generic_string());
+                    }
                 }
             }
         }
